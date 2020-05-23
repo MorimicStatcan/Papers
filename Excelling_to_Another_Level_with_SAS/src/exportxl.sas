@@ -1,3 +1,4 @@
+
 /** The %exportxl macro
   *
   * This macro exports SAS datasets to Excel. It only requires base SAS and
@@ -18,10 +19,8 @@
   *
   * AUTHORS: Arthur Tabachneck, Tom Abernathy and Matt Kastin
   * CREATED: August 6, 2013
-  * MOST RECENT VERSION: November 10, 2017
-
+  * MOST RECENT VERSION: July 1, 2019
   * Named Parameter Descriptions:
-
   * data: the parameter to which you would assign the name of the file that
     you want to export.  Like with PROC EXPORT, you can use either a one or
     two-level filename, and dataset options can be included.  If you assign
@@ -29,7 +28,6 @@
     called as an action from a SAS Explorer window, this parameter should be
     set to equal: data=%8b.%32b which the macro will interpret as
     libname.filename of the file that was selected
-
   * outfile: the parameter to which you would assign the path and filename of
     the workbook that you want the macro to either create or modify.  The
     file’s path must exist before the macro is run. Any one of the following
@@ -44,48 +42,42 @@
   * sheet: the parameter to which you would assign the name of the worksheet
     that you want to either create or modify. Any one of the following
     values can be used:
-
       Any valid worksheet name
       Null The filename of the data parameter
       W    Provide window for user input during run
-
   * type: the parameter you would use to indicate the type of process that
     you want to run. The default value of this parameter is: N.  Any one of
     the following values can be used:
-
       N Create a new workbook
       A Add a new worksheet to an existing workbook
       M Modify an existing worksheet
       C Copy the dataset to your system’s clipboard
-
   * usenames: the parameter you would use to indicate whether you want the
     first row of the range to contain the first data record, the variable
     names, or the variable labels. The default value of this parameter is: Y.
     Any one of the following values can be used:
-
       N Don’t include a variable name row
       Y You want the top most row to contain variable names
       L You want the top most row to contain variable labels if they exist,
         otherwise use variable names
       W Provide window for user input during run
-
+  * reorder_vars: If this parameter is included, the variables specified will
+    be included in a retain statement, thus moving them to the beginning of
+    each data record
   * range: the parameter you would use to indicate the upper left cell where
     you want the table to begin.  The default value is: A1. Any one of The
     following values can be used:
     
       Any valid Excel cell name
       W Provide window for user input during run
-
   * template: the parameter you would use if you have a preformatted Excel
     template (or Excel workbook) that you want to apply to the data you are
     exporting. In such a case, use this parameter to specify the template’s
     path and filename (e.g., template=c:\temp\template.xltx ). Any one of the
     following values can be used:
-
     Any valid workbook or template filename (including path)
       Null No template is to be used
       W    Provide window for user input during run
-
   * templatesheet: If you include the template parameter you must use this
     parameter to specify the template's Worksheet that contains the template
     you want to apply (e.g.,  templatesheet=template ).  Either of the
@@ -98,11 +90,9 @@
     dataset’s formats to be applied when you exporting its data.  The default
     value of this parameter is: N. Any one of the following values can be
     used:
-
       Y If you want a dataset’s formats to be applied
       N If you don’t want a dataset’s formats to be applied
       W Provide window for user input during run
-
   * usenotepad: If you're running this macro on a server, or on an operating
     system that doesn’t provide direct access to your computer’s clipboard,
     or have an Excel configuration that clears the clipboard upon opening,
@@ -127,7 +117,6 @@
       Space separated list of variable names
       W Provide window for user input during run
     
-
 */
 
 %macro exportxl(data=,
@@ -135,6 +124,7 @@
                 sheet=,
                 type=N,
                 usenames=Y,
+                reorder_vars=,
                 range=A1,
                 template=,
                 templatesheet=,
@@ -166,7 +156,7 @@
     %let filenm=&data.;
   %end;
 
-  %if %upcase(&outfile.) eq W %then %do;
+  %if %upcase(%str(&outfile.)) eq W %then %do;
     data _null_;
       window outfile rows=8 columns=80
       irow=1 icolumn=2 color=black
@@ -181,7 +171,7 @@
   %if %length(&outfile.) lt 1 %then
     %let outfile=%sysfunc(pathname(&libnm.))\&filenm..xlsx;;
 
-  %if %upcase(&sheet.) eq W %then %do;
+  %if %upcase(%sysfunc(compress(&outfile.,/))) eq W %then %do;
     data _null_;
       window sheet rows=8 columns=80
       irow=1 icolumn=2 color=black
@@ -303,6 +293,7 @@
     run;
 
     data t_e_m_p;
+      retain &reorder_vars.;
       set &libnm..&filenm. (%unquote(&dsoptions.) obs=1);
     run;
 
@@ -692,65 +683,59 @@
   write access to a directory named: c:\temp. Having that specific
   directory isn't a requirement for the macro, but you do need to have
   write access to the file that you specify in the outfile parameter
-
   * Example 1: Create a new workbook (c:\temp\class.xlsx), copying all
     records from sashelp.class, letting the macro automatically name the
     worksheet (i.e., use the data parameter's filename: class), with the
     worksheet's first row containing the dataset's variable names:
                
     %exportxl(data=sashelp.class, outfile=c:\temp\class.xlsx)
-
   * Example 2: Create the same workbook as in Example 1, but name the
     worksheet 'Students', and don't include a variable name header record:
-
       %exportxl(data=sashelp.class, outfile=c:\temp\class.xlsx,usenames=N,
         sheet=Students)
-
   * Example 3: Same as Example 2, but running on a system that doesn't
     provide direct access to your computer's clipboard (e.g., a server),
     or have an Excel configuration that clears the clipboard upon opening:
-
       %exportxl(data=sashelp.class, outfile=c:\temp\class.xlsx,usenames=N,
         sheet=Students, usenotepad=Y)
-
   * Example 4: Create a new workbook from sashelp.cars, name the worksheet
     'cars', and have the worksheet's first row contain the dataset's
     variable labels:
                
       %exportxl( data=sashelp.cars, outfile=c:\temp\cars.xlsx,usenames=L)
-
   * Example 5: Create a new workbook (c:\temp\class.xlsx), copying all
     records for males from sashelp.class, name the worksheet 'Males', and
     have the worksheet's first row contain the dataset's variable names:
                
       %exportxl( data=sashelp.class(where=(sex eq 'M')),sheet=Males,
         outfile=c:\temp\class.xlsx)
-
-
   * Example 6: Modify the workbook created in Example 5, adding a new
     worksheet named 'Females', copying all records for females from
     sashelp.class, and have the worksheet's first row contain the
     dataset's variable names:
-
       %exportxl( data=sashelp.class(where=(sex eq 'F')),sheet=Females,
         outfile=c:\temp\class.xlsx,type=A)
-
   * Example 7: Create a workbook using an Excel template
   
       %exportxl( data=sashelp.class (keep=name sex age height),
         template=c:\temp\template.xltx, templatesheet=template,
         outfile=c:\temp\class_stats.xlsx, usenames=N,
         range=A2, sheet=Jan_2018)
-
   * Example 8: Modify workbook created by running Example 7, adding
     the weight variable to column E
     
       %exportxl( data=sashelp.class (keep=weight), type=M, range=E2,
         outfile=c:\temp\class_stats.xlsx, usenames=N, sheet=Jan_2018)
-
   * Example 9: Create a new workbook including a Pivot Table
-
       %exportxl( data=sashelp.cars, outfile=c:\temp\cars.xlsx,
         pivot=Origin Type Make MSRP)
-
+  * Example 10: Create a new workbook (c:\temp\class.xlsx), limiting the
+    variables to only include name, age, sex and height, reordering name
+    and age to be the first two variables, and copying all
+    records from sashelp.class, letting the macro automatically name the
+    worksheet (i.e., use the data parameter's filename: class), with the
+    worksheet's first row containing the dataset's variable names:
+               
+    %exportxl(data=sashelp.class (keep=name age sex height),
+    reorder_vars=name age, outfile=c:\temp\class.xlsx)
 */
